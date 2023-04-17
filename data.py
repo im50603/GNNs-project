@@ -4,6 +4,7 @@ import atom3d
 import pandas as pd
 import numpy as np
 from atom3d.datasets import load_dataset
+import pickle
 
 def prepare(item, k=50, label_to_use='rms'):
   element_mapping = {
@@ -61,10 +62,8 @@ def prepare(item, k=50, label_to_use='rms'):
   nei_list = torch.cat(nei_list, dim=0).transpose(1, 0)
   geo_list = torch.cat(geo_list, dim=0)
 
-  r_max = 10  # Doesn't matter since we override
-  d = torch_geometric.data.Data(x=features, edge_index=nei_list, edge_attr=geo_list, pos=geometry) # for now ignore: , Rs_in=[(num_channels, 0)])
-#  d.edge_attr = geo_list
-#  d.edge_index = nei_list
+  r_max = 10  # Doesn't matter since we override - not used here, only in original paper
+  d = torch_geometric.data.Data(x=features, edge_index=nei_list, edge_attr=geo_list, pos=geometry) # for now ignore, useful for layers with spherical harmonics: , Rs_in=[(num_channels, 0)])
   d.r_max = r_max
   d.label = label
   d.id = item['id']
@@ -78,23 +77,64 @@ def transform_dataset(dataset, label_to_use=None):
   return data_list
 
 
-if __name__=='__main__':
-  train_dataset_path = '/mnt/c/Users/martinovici/Desktop/ivona/ARES_related/classics_train_val/example_train/'
-  val_dataset_path = '/mnt/c/Users/martinovici/Desktop/ivona/ARES_related/classics_train_val/example_val/'
-  out_train_transformed = 'data/processed/train_graphs.pkl'
-  out_val_trainsformed = 'data/processed/val_graphs.pkl'
-  filetype_train = 'pdb'
+def add_scores(item):
+  pdb_path = item['file_path']
+  scores = {}
+
+  with open(pdb_path, 'r') as file:
+    ter_found = False
+    for line in file:
+      if line.startswith("TER"):
+        ter_found = True
+      elif ter_found:
+        line = line.strip()
+        if line:
+          tokens = line.split()
+          key = tokens[0]
+          value = float(tokens[1])
+          scores[key] = value
+
+  item['scores'] = scores
+  return item
+
+
+def main():
+  train_dataset_path = '/home/martinovici/scratch/GNN_project/data/new_train/' # classics_train_val/lmdbs/example_train/'
+  val_dataset_path = '/home/martinovici/scratch/GNN_project/data/new_val/' # classics_train_val/lmdbs/example_val/'
+  out_train_transformed = 'data/processed/new_train_graphs.pkl'
+  out_val_trainsformed = 'data/processed/new_val_graphs.pkl'
+  filetype = 'pdb' # 'lmdb'
   
   # atom3d package loads_dataset from the path, and creates dataset based on the filetype -> PDBDataset, LMDBDataset, etc
-  train_dataset = load_dataset(train_dataset_path, filetype_train)
-    # after loading the dataset, we have to transform it, it can be done by adding transform function as a parameter of load_dataset function, 
+  # IMPORTANT! If filetype == 'pdb' load with train_dataset = load_dataset(train_dataset_path, filetype_train, transform=add_scores)
+  train_dataset = load_dataset(train_dataset_path, filetype, transform=add_scores)
+  # after loading the dataset, we have to transform it, it can be done by adding transform function as a parameter of load_dataset function, 
   # but that way it is applied every time you access the data, so it becomes too slow
-  train_data_list = transform_dataset(train_dataset)
+  train_data_list = transform_dataset(train_dataset, label_to_use='rms')
   with open(out_train_transformed, 'wb') as f:
     pickle.dump(train_data_list, f)
 
-  val_dataset = atom3d.datasets.load_dataset(val_dataset_path, filetype_train)
-  val_data_list = transform_dataset(val_dataset) 
+  val_dataset = atom3d.datasets.load_dataset(val_dataset_path, filetype, transform=add_scores)
+  val_data_list = transform_dataset(val_dataset, label_to_use='rms') 
 
   with open(out_val_trainsformed, 'wb') as f:
     pickle.dump(val_data_list, f)
+
+
+def main2(): # TODO Remove this
+  train_dataset_path = '/home/martinovici/scratch/GNN_project/data/eval/' #augmented_puzzles/near_natives/rna_puzzle_1_lmdb/'
+  out_train_transformed = 'data/processed/eval.pkl'
+  filetype_train = 'pdb'
+  
+  # atom3d package loads_dataset from the path, and creates dataset based on the filetype -> PDBDataset, LMDBDataset, etc
+  train_dataset = load_dataset(train_dataset_path, filetype_train, transform=add_scores)
+    # after loading the dataset, we have to transform it, it can be done by adding transform function as a parameter of load_dataset function, 
+  # but that way it is applied every time you access the data, so it becomes too slow
+  train_data_list = transform_dataset(train_dataset, label_to_use='rms')
+  with open(out_train_transformed, 'wb') as f:
+    pickle.dump(train_data_list, f)
+
+
+if __name__=='__main__':
+  main2()
+
