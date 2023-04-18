@@ -84,7 +84,7 @@ class GraphRegressionModel(torch.nn.Module):
     return self.regression_head(x)
 
 class MultiLayerGraphRegressionModel(torch.nn.Module):
-  def __init__(self, in_node_channels, in_edge_channels, hidden_channels, out_channels, mpnn_type, aggr, num_layers):
+  def __init__(self, in_node_channels, in_edge_channels, hidden_channels, out_channels, mpnn_type, aggr, num_layers, dropout_prob=0.1):
     super(MultiLayerGraphRegressionModel, self).__init__()
     self.node_linear =  NodeFeatureLinear(in_node_channels, hidden_channels[0])
     self.edge_linear = EdgeFeatureLinear(in_edge_channels, hidden_channels[0])
@@ -108,6 +108,7 @@ class MultiLayerGraphRegressionModel(torch.nn.Module):
       self.node_lin_layers.append(torch.nn.Linear(hidden_channels[i], hidden_channels[i+1]))
       self.edge_lin_layers.append(torch.nn.Linear(hidden_channels[i], hidden_channels[i+1]))
     self.aggr = aggr
+    self.dropout = torch.nn.Dropout(p=dropout_prob)
     self.regression_head = RegressionHead(hidden_channels[-1], out_channels)
 
   def forward(self, batch, device):
@@ -125,6 +126,8 @@ class MultiLayerGraphRegressionModel(torch.nn.Module):
         x = self.mpnns[i](x, edge_index, edge_attr)
       x = torch.nn.functional.relu(self.node_lin_layers[i](x))
       edge_attr = torch.nn.functional.relu(self.edge_lin_layers[i](edge_attr))
+#      x = self.dropout(x) # Apply dropout after activation
+#      edge_attr = self.dropout(edge_attr) # Apply dropout after activation
     
     x = self.aggr(x, batch.batch.to(device)) # Use batch information for global pooling
     return self.regression_head(x)
