@@ -121,20 +121,6 @@ def main():
     pickle.dump(val_data_list, f)
 
 
-def main2(): # TODO Remove this
-  train_dataset_path = '/home/martinovici/scratch/GNN_project/data/eval/' #augmented_puzzles/near_natives/rna_puzzle_1_lmdb/'
-  out_train_transformed = 'data/processed/eval.pkl'
-  filetype_train = 'pdb'
-  
-  # atom3d package loads_dataset from the path, and creates dataset based on the filetype -> PDBDataset, LMDBDataset, etc
-  train_dataset = load_dataset(train_dataset_path, filetype_train, transform=add_scores)
-    # after loading the dataset, we have to transform it, it can be done by adding transform function as a parameter of load_dataset function, 
-  # but that way it is applied every time you access the data, so it becomes too slow
-  train_data_list = transform_dataset(train_dataset, label_to_use='rms')
-  with open(out_train_transformed, 'wb') as f:
-    pickle.dump(train_data_list, f)
-
-
 if __name__=='__main__':
   main2()
 
